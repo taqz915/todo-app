@@ -19,9 +19,8 @@ class TodoApp {
 
     async init() {
         try {
-            await this.migrateFromLocalStorage();
-            await this.loadCurrentUser();
-            await this.loadTodosFromSupabase();
+            this.setupAuthListener();
+            await this.checkAuthSession();
             this.setupEventListeners();
             this.setupDragAndDropZones();
             this.render();
@@ -35,28 +34,240 @@ class TodoApp {
         }
     }
 
+    setupAuthListener() {
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+            console.log('Auth event:', event, session);
+
+            if (event === 'SIGNED_IN' && session) {
+                this.currentUser = session.user;
+                this.userName = session.user.email;
+                await this.loadTodosFromSupabase();
+                this.updateUIForAuthState(true);
+                this.render();
+                this.hideAuthModal();
+                this.showNotification(`환영합니다! 🎉`);
+            } else if (event === 'SIGNED_OUT') {
+                this.currentUser = null;
+                this.userName = '';
+                this.todos = [];
+                this.updateUIForAuthState(false);
+                this.render();
+            } else if (event === 'TOKEN_REFRESHED') {
+                console.log('Token refreshed');
+            }
+        });
+    }
+
+    async checkAuthSession() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+
+        if (session) {
+            this.currentUser = session.user;
+            this.userName = session.user.email;
+            await this.loadTodosFromSupabase();
+            this.updateUIForAuthState(true);
+        } else {
+            this.updateUIForAuthState(false);
+        }
+    }
+
+    updateUIForAuthState(isAuthenticated) {
+        const authSection = document.getElementById('authSection');
+        const userSection = document.getElementById('userSection');
+        const greeting = document.getElementById('userGreeting');
+
+        if (isAuthenticated) {
+            authSection.style.display = 'none';
+            userSection.style.display = 'flex';
+            greeting.textContent = `안녕하세요! ${this.userName} 👋`;
+            greeting.classList.add('active');
+        } else {
+            authSection.style.display = 'block';
+            userSection.style.display = 'none';
+            greeting.classList.remove('active');
+        }
+    }
+
+    showAuthModal() {
+        console.log('showAuthModal 호출됨');
+        const modal = document.getElementById('authModal');
+        const emailInput = document.getElementById('emailInput');
+        const authForm = document.getElementById('authForm');
+        const authSuccess = document.getElementById('authSuccess');
+        const authError = document.getElementById('authError');
+
+        console.log('Modal element:', modal);
+        console.log('Email input:', emailInput);
+
+        authForm.style.display = 'block';
+        authSuccess.style.display = 'none';
+        authError.style.display = 'none';
+        emailInput.value = '';
+
+        modal.style.display = 'flex';
+        setTimeout(() => emailInput.focus(), 100);
+    }
+
+    hideAuthModal() {
+        const modal = document.getElementById('authModal');
+        modal.style.display = 'none';
+    }
+
+    async sendMagicLink() {
+        const emailInput = document.getElementById('emailInput');
+        const email = emailInput.value.trim();
+        const authForm = document.getElementById('authForm');
+        const authSuccess = document.getElementById('authSuccess');
+        const authError = document.getElementById('authError');
+        const successMessage = document.getElementById('successMessage');
+
+        if (!email) {
+            this.showAuthError('이메일 주소를 입력해주세요.');
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            this.showAuthError('유효한 이메일 주소를 입력해주세요.');
+            return;
+        }
+
+        try {
+            const { error } = await supabaseClient.auth.signInWithOtp({
+                email: email,
+                options: {
+                    emailRedirectTo: window.location.origin
+                }
+            });
+
+            if (error) {
+                console.error('Magic link error:', error);
+                this.showAuthError(this.getErrorMessage(error));
+            } else {
+                authForm.style.display = 'none';
+                authError.style.display = 'none';
+                authSuccess.style.display = 'block';
+                successMessage.textContent = `${email}로 로그인 링크를 전송했습니다. 이메일을 확인해주세요.`;
+            }
+        } catch (error) {
+            console.error('Unexpected error:', error);
+            this.showAuthError('예상치 못한 오류가 발생했습니다. 다시 시도해주세요.');
+        }
+    }
+
+    showAuthError(message) {
+        const authError = document.getElementById('authError');
+        const errorMessage = document.getElementById('errorMessage');
+
+        errorMessage.textContent = message;
+        authError.style.display = 'flex';
+    }
+
+    getErrorMessage(error) {
+        if (error.message.includes('rate limit')) {
+            return '너무 많은 요청을 보냈습니다. 잠시 후 다시 시도해주세요.';
+        } else if (error.message.includes('invalid email')) {
+            return '유효하지 않은 이메일 주소입니다.';
+        } else {
+            return `로그인 실패: ${error.message}`;
+        }
+    }
+
+    async signOut() {
+        if (!confirm('로그아웃 하시겠습니까?')) return;
+
+        try {
+            const { error } = await supabaseClient.auth.signOut();
+
+            if (error) {
+                console.error('Logout error:', error);
+                this.showNotification('로그아웃에 실패했습니다.');
+            } else {
+                this.showNotification('로그아웃되었습니다. 👋');
+            }
+        } catch (error) {
+            console.error('Unexpected logout error:', error);
+            this.showNotification('로그아웃에 실패했습니다.');
+        }
+    }
+
+    async signInWithGoogle() {
+        try {
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                    redirectTo: window.location.origin
+                }
+            });
+
+            if (error) {
+                console.error('Google login error:', error);
+                this.showAuthError('Google 로그인에 실패했습니다.');
+            }
+        } catch (error) {
+            console.error('Unexpected Google login error:', error);
+            this.showAuthError('Google 로그인 중 오류가 발생했습니다.');
+        }
+    }
+
+    async signInWithGithub() {
+        try {
+            const { error } = await supabaseClient.auth.signInWithOAuth({
+                provider: 'github',
+                options: {
+                    redirectTo: window.location.origin
+                }
+            });
+
+            if (error) {
+                console.error('GitHub login error:', error);
+                this.showAuthError('GitHub 로그인에 실패했습니다.');
+            }
+        } catch (error) {
+            console.error('Unexpected GitHub login error:', error);
+            this.showAuthError('GitHub 로그인 중 오류가 발생했습니다.');
+        }
+    }
+
     setupEventListeners() {
-        const userNameInput = document.getElementById('userName');
-        const userLoginBtn = document.getElementById('userLoginBtn');
+        console.log('setupEventListeners 호출됨');
+        const showAuthModalBtn = document.getElementById('showAuthModalBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const sendMagicLinkBtn = document.getElementById('sendMagicLinkBtn');
+        const emailInput = document.getElementById('emailInput');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const googleLoginBtn = document.getElementById('googleLoginBtn');
+        const githubLoginBtn = document.getElementById('githubLoginBtn');
+
+        console.log('showAuthModalBtn:', showAuthModalBtn);
+        console.log('googleLoginBtn:', googleLoginBtn);
+        console.log('githubLoginBtn:', githubLoginBtn);
+
+        if (showAuthModalBtn) {
+            showAuthModalBtn.addEventListener('click', () => {
+                console.log('로그인 버튼 클릭됨!');
+                this.showAuthModal();
+            });
+        } else {
+            console.error('showAuthModalBtn을 찾을 수 없습니다!');
+        }
+        closeModalBtn.addEventListener('click', () => this.hideAuthModal());
+        modalOverlay.addEventListener('click', () => this.hideAuthModal());
+        sendMagicLinkBtn.addEventListener('click', () => this.sendMagicLink());
+        logoutBtn.addEventListener('click', () => this.signOut());
+        googleLoginBtn.addEventListener('click', () => this.signInWithGoogle());
+        githubLoginBtn.addEventListener('click', () => this.signInWithGithub());
+
+        emailInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                this.sendMagicLink();
+            }
+        });
+
         const todoInput = document.getElementById('todoInput');
         const addTodoBtn = document.getElementById('addTodoBtn');
         const priorityBtns = document.querySelectorAll('.priority-btn');
-
-        userNameInput.value = this.userName;
-
-        // 로그인 버튼 클릭 이벤트
-        userLoginBtn.addEventListener('click', () => {
-            const name = userNameInput.value;
-            this.updateUserName(name);
-        });
-
-        // 이름 입력 필드에서 Enter 키 처리
-        userNameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                const name = userNameInput.value;
-                this.updateUserName(name);
-            }
-        });
 
         todoInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -73,88 +284,6 @@ class TodoApp {
                 this.selectedPriority = btn.dataset.priority;
             });
         });
-    }
-
-    async migrateFromLocalStorage() {
-        const localData = localStorage.getItem('todoApp');
-        if (!localData) {
-            console.log('마이그레이션할 localStorage 데이터가 없습니다.');
-            return;
-        }
-
-        try {
-            const { todos, userName } = JSON.parse(localData);
-            console.log('localStorage에서 데이터 발견:', { userName, todoCount: todos?.length });
-
-            if (userName) {
-                const { data: user, error } = await supabaseClient
-                    .from('users')
-                    .insert({ name: userName })
-                    .select()
-                    .single();
-
-                if (error) {
-                    console.error('사용자 생성 실패:', error);
-                    return;
-                }
-
-                if (user) {
-                    this.currentUser = user;
-                    this.userName = user.name;
-                    localStorage.setItem('currentUserName', userName);
-                    console.log('사용자 생성 완료:', user);
-
-                    if (todos && todos.length > 0) {
-                        const todosToInsert = todos.map((todo, index) => ({
-                            user_id: user.id,
-                            text: todo.text,
-                            completed: todo.completed,
-                            priority: todo.priority,
-                            position: index
-                        }));
-
-                        const { error: todoError } = await supabaseClient.from('todos').insert(todosToInsert);
-                        if (todoError) {
-                            console.error('할일 마이그레이션 실패:', todoError);
-                        } else {
-                            console.log(`${todos.length}개 할일 마이그레이션 완료`);
-                        }
-                    }
-                }
-            }
-
-            localStorage.setItem('todoApp_backup', localData);
-            localStorage.removeItem('todoApp');
-            console.log('localStorage 데이터가 Supabase로 마이그레이션되었습니다.');
-        } catch (e) {
-            console.error('마이그레이션 실패:', e);
-        }
-    }
-
-    async loadCurrentUser() {
-        const userName = localStorage.getItem('currentUserName') || '';
-        if (!userName) {
-            console.log('저장된 사용자 이름이 없습니다.');
-            return;
-        }
-
-        console.log('사용자 로드 시도:', userName);
-        const { data, error } = await supabaseClient
-            .from('users')
-            .select('*')
-            .eq('name', userName)
-            .single();
-
-        if (error) {
-            console.error('사용자 로드 실패:', error);
-            return;
-        }
-
-        if (data) {
-            this.currentUser = data;
-            this.userName = data.name;
-            console.log('사용자 로드 완료:', data);
-        }
     }
 
     async loadTodosFromSupabase() {
@@ -194,60 +323,8 @@ class TodoApp {
         });
     }
 
-    async updateUserName(name) {
-        const trimmedName = name.trim();
-
-        if (!trimmedName) {
-            this.showNotification('이름을 입력해주세요!');
-            return;
-        }
-
-        console.log('사용자 조회/생성 시도:', trimmedName);
-
-        const { data: existingUser } = await supabaseClient
-            .from('users')
-            .select('*')
-            .eq('name', trimmedName)
-            .single();
-
-        if (existingUser) {
-            this.currentUser = existingUser;
-            this.userName = existingUser.name;
-            console.log('기존 사용자 로그인:', existingUser);
-            this.showNotification(`환영합니다, ${this.userName}님! 👋`);
-        } else {
-            const { data: newUser, error } = await supabaseClient
-                .from('users')
-                .insert({ name: trimmedName })
-                .select()
-                .single();
-
-            if (newUser) {
-                this.currentUser = newUser;
-                this.userName = newUser.name;
-                console.log('새 사용자 생성:', newUser);
-                this.showNotification(`회원가입 완료! 환영합니다, ${this.userName}님! 🎉`);
-            } else {
-                console.error('사용자 생성 실패:', error);
-                this.showNotification('로그인에 실패했습니다. 다시 시도해주세요.');
-                return;
-            }
-        }
-
-        localStorage.setItem('currentUserName', trimmedName);
-        await this.loadTodosFromSupabase();
-        this.updateGreeting();
-        this.render();
-    }
-
     updateGreeting() {
-        const greeting = document.getElementById('userGreeting');
-        if (this.userName) {
-            greeting.textContent = `안녕하세요, ${this.userName}님! 👋`;
-            greeting.classList.add('active');
-        } else {
-            greeting.classList.remove('active');
-        }
+        // Now handled by updateUIForAuthState()
     }
 
     async addTodo() {
@@ -260,7 +337,8 @@ class TodoApp {
         }
 
         if (!this.currentUser) {
-            this.showNotification('사용자 이름을 먼저 입력해주세요!');
+            this.showNotification('먼저 로그인해주세요!');
+            this.showAuthModal();
             return;
         }
 

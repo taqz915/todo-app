@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>할일 목록</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="header-title">
+                <span class="material-icons">task_alt</span>
+                할일 목록
+            </h1>
+        </header>
+
+        <div class="user-info-card card">
+            <div class="card-content">
+                <div class="input-group">
+                    <span class="material-icons input-icon">person</span>
+                    <input type="text" id="userName" class="input-field" placeholder="이름을 입력하세요">
+                    <button id="userLoginBtn" class="btn-secondary">
+                        <span class="material-icons" style="font-size: 18px;">login</span>
+                        <span>로그인</span>
+                    </button>
+                </div>
+                <div class="user-greeting" id="userGreeting"></div>
+            </div>
+        </div>
+
+        <div class="add-todo-card card">
+            <div class="card-content">
+                <div class="input-group">
+                    <span class="material-icons input-icon">add_circle</span>
+                    <input type="text" id="todoInput" class="input-field" placeholder="새로운 할일을 입력하세요">
+                </div>
+                <div class="priority-selector">
+                    <button class="priority-btn" data-priority="high">
+                        <span class="material-icons">priority_high</span>
+                        높음
+                    </button>
+                    <button class="priority-btn active" data-priority="medium">
+                        <span class="material-icons">remove</span>
+                        중간
+                    </button>
+                    <button class="priority-btn" data-priority="low">
+                        <span class="material-icons">arrow_downward</span>
+                        낮음
+                    </button>
+                </div>
+                <button id="addTodoBtn" class="btn-primary">
+                    <span class="material-icons">add</span>
+                    추가하기
+                </button>
+            </div>
+        </div>
+
+        <div class="todo-lists">
+            <div class="priority-section" data-priority="high">
+                <div class="priority-header high">
+                    <span class="material-icons">priority_high</span>
+                    <h2>높은 우선순위</h2>
+                    <span class="count-badge" id="highCount">0</span>
+                </div>
+                <div class="todo-list" id="highPriorityList"></div>
+            </div>
+
+            <div class="priority-section" data-priority="medium">
+                <div class="priority-header medium">
+                    <span class="material-icons">remove</span>
+                    <h2>중간 우선순위</h2>
+                    <span class="count-badge" id="mediumCount">0</span>
+                </div>
+                <div class="todo-list" id="mediumPriorityList"></div>
+            </div>
+
+            <div class="priority-section" data-priority="low">
+                <div class="priority-header low">
+                    <span class="material-icons">arrow_downward</span>
+                    <h2>낮은 우선순위</h2>
+                    <span class="count-badge" id="lowCount">0</span>
+                </div>
+                <div class="todo-list" id="lowPriorityList"></div>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="material-icons">check_circle</span>
+                    <span>완료: <strong id="completedCount">0</strong></span>
+                </div>
+                <div class="stat-item">
+                    <span class="material-icons">radio_button_unchecked</span>
+                    <span>미완료: <strong id="pendingCount">0</strong></span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -136,7 +136,7 @@ class TodoApp {
             const { error } = await supabaseClient.auth.signInWithOtp({
                 email: email,
                 options: {
-                    emailRedirectTo: window.location.origin
+                    emailRedirectTo: window.location.href
                 }
             });
 
@@ -196,7 +196,7 @@ class TodoApp {
             const { error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.origin
+                    redirectTo: window.location.href
                 }
             });
 
@@ -215,7 +215,7 @@ class TodoApp {
             const { error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'github',
                 options: {
-                    redirectTo: window.location.origin
+                    redirectTo: window.location.href
                 }
             });
 

@@ -133,10 +133,13 @@ class TodoApp {
         }
 
         try {
+            const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+            console.log('Magic link redirect URL:', redirectUrl);
+
             const { error } = await supabaseClient.auth.signInWithOtp({
                 email: email,
                 options: {
-                    emailRedirectTo: window.location.href
+                    emailRedirectTo: redirectUrl
                 }
             });
 
@@ -193,10 +196,13 @@ class TodoApp {
 
     async signInWithGoogle() {
         try {
+            const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+            console.log('Google login redirect URL:', redirectUrl);
+
             const { error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: window.location.href
+                    redirectTo: redirectUrl
                 }
             });
 
@@ -212,10 +218,13 @@ class TodoApp {
 
     async signInWithGithub() {
         try {
+            const redirectUrl = `${window.location.origin}${window.location.pathname}`;
+            console.log('GitHub login redirect URL:', redirectUrl);
+
             const { error } = await supabaseClient.auth.signInWithOAuth({
                 provider: 'github',
                 options: {
-                    redirectTo: window.location.href
+                    redirectTo: redirectUrl
                 }
             });
 
